@@ -1,7 +1,10 @@
 // Ch07: useOptimistic for instant CRUD feedback (React 19)
+// Ch09: useFormStatus for form pending state (React 19)
 // Ch05: Compound Components (Modal, Card), Custom hooks
 import { useState, useOptimistic, useTransition, useCallback } from "react";
+import { useFormStatus } from "react-dom";
 import { useApp } from "../context/AppContext";
+import { useToast } from "../context/ToastContext";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
 import { Button } from "../components/ui/Button";
@@ -61,19 +64,33 @@ function ProjectCard({ project, onDelete }: { project: Project; onDelete: (id: s
   );
 }
 
+// useFormStatus must be called inside a child of the <form> element
+function SubmitButton({ disabled }: { disabled: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" variant="primary" disabled={pending || disabled}>
+      {pending ? "Creating…" : "Create Project"}
+    </Button>
+  );
+}
+
 function NewProjectModal({ open, onClose, onAdd }: {
   open: boolean; onClose: () => void; onAdd: (p: Project) => void;
 }) {
-  const [name, setName] = useState("");
   const [priority, setPriority] = useState<"low" | "medium" | "high">("medium");
+  const [name, setName] = useState("");
+  const { toast } = useToast();
 
-  function handleSubmit() {
-    if (!name.trim()) return;
+  async function handleAction(formData: FormData) {
+    const projectName = (formData.get("name") as string)?.trim();
+    if (!projectName) return;
+    await new Promise(r => setTimeout(r, 600));
     const newProject: Project = {
-      id: `p${Date.now()}`, name: name.trim(), status: "active",
+      id: `p${Date.now()}`, name: projectName, status: "active",
       progress: 0, team: ["JD"], dueDate: "TBD", priority,
     };
     onAdd(newProject);
+    toast(`"${newProject.name}" created`, "success");
     setName("");
     onClose();
   }
@@ -81,49 +98,54 @@ function NewProjectModal({ open, onClose, onAdd }: {
   return (
     <Modal open={open} onClose={onClose}>
       <Modal.Header>New Project</Modal.Header>
-      <Modal.Body>
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <Input
-            label="Project name" value={name} onChange={e => setName(e.target.value)}
-            placeholder="e.g. Mobile App Redesign"
-            onKeyDown={e => e.key === "Enter" && handleSubmit()}
-            autoFocus
-          />
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>Priority</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              {(["low", "medium", "high"] as const).map(p => (
-                <button
-                  key={p} onClick={() => setPriority(p)}
-                  style={{
-                    flex: 1, padding: "7px", borderRadius: "var(--radius-sm)", fontSize: 12, fontWeight: 500,
-                    border: `1px solid ${priority === p ? "var(--primary)" : "var(--border-strong)"}`,
-                    background: priority === p ? "var(--primary-dim)" : "var(--bg-elevated)",
-                    color: priority === p ? "var(--primary)" : "var(--text-secondary)",
-                    cursor: "pointer",
-                  }}
-                >
-                  {p}
-                </button>
-              ))}
+      <form action={handleAction}>
+        <Modal.Body>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <Input
+              name="name"
+              label="Project name"
+              value={name}
+              onChange={e => setName(e.target.value)}
+              placeholder="e.g. Mobile App Redesign"
+              autoFocus
+            />
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 500, color: "var(--text-secondary)", marginBottom: 6 }}>Priority</div>
+              <div style={{ display: "flex", gap: 8 }}>
+                {(["low", "medium", "high"] as const).map(p => (
+                  <button
+                    key={p} type="button" onClick={() => setPriority(p)}
+                    style={{
+                      flex: 1, padding: "7px", borderRadius: "var(--radius-sm)", fontSize: 12, fontWeight: 500,
+                      border: `1px solid ${priority === p ? "var(--primary)" : "var(--border-strong)"}`,
+                      background: priority === p ? "var(--primary-dim)" : "var(--bg-elevated)",
+                      color: priority === p ? "var(--primary)" : "var(--text-secondary)",
+                      cursor: "pointer", fontFamily: "inherit",
+                    }}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
-        </div>
-      </Modal.Body>
-      <Modal.Footer>
-        <Button variant="ghost" onClick={onClose}>Cancel</Button>
-        <Button variant="primary" onClick={handleSubmit} disabled={!name.trim()}>Create Project</Button>
-      </Modal.Footer>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
+          <SubmitButton disabled={!name.trim()} />
+        </Modal.Footer>
+      </form>
     </Modal>
   );
 }
 
 export default function Projects() {
   const { state, dispatch } = useApp();
+  const { toast } = useToast();
   const [modalOpen, setModalOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  // useOptimistic — Ch07 / React 19: instant UI update before server confirm
+  // useOptimistic — instant UI update before server confirm
   const [optimisticProjects, updateOptimistic] = useOptimistic(
     state.projects,
     (current, action: { type: "delete"; id: string } | { type: "add"; project: Project }) => {
@@ -135,13 +157,14 @@ export default function Projects() {
   const { query, setQuery, results, isStale } = useSearch(optimisticProjects, ["name", "status", "priority"]);
 
   const handleDelete = useCallback((id: string) => {
+    const project = state.projects.find(p => p.id === id);
     startTransition(async () => {
       updateOptimistic({ type: "delete", id });
-      // Simulate async server call
       await new Promise(r => setTimeout(r, 300));
       dispatch({ type: "DELETE_PROJECT", payload: id });
+      if (project) toast(`"${project.name}" deleted`, "warning");
     });
-  }, [dispatch, updateOptimistic]);
+  }, [dispatch, state.projects, toast, updateOptimistic]);
 
   const handleAdd = useCallback((project: Project) => {
     startTransition(async () => {
@@ -151,11 +174,8 @@ export default function Projects() {
     });
   }, [dispatch, updateOptimistic]);
 
-  const filterStatus = (status: string) =>
-    status === "all" ? results : results.filter(p => p.status === status);
-
   const [tab, setTab] = useState<"all" | "active" | "paused" | "completed">("all");
-  const shown = filterStatus(tab);
+  const shown = tab === "all" ? results : results.filter(p => p.status === tab);
 
   return (
     <div style={{ padding: "24px" }}>
@@ -173,7 +193,7 @@ export default function Projects() {
               padding: "5px 12px", borderRadius: "var(--radius-sm)", fontSize: 12, fontWeight: 500, border: "none",
               background: tab === t ? "var(--bg-surface)" : "transparent",
               color: tab === t ? "var(--text-primary)" : "var(--text-secondary)",
-              cursor: "pointer", transition: "background 0.15s",
+              cursor: "pointer", transition: "background 0.15s", fontFamily: "inherit",
             }}>{t}</button>
           ))}
         </div>

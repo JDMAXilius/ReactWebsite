@@ -2,8 +2,10 @@
 // Ch04: Error Boundary wrapping each page
 import { lazy, Suspense, Component, type ReactNode } from "react";
 import { AppProvider, useApp } from "./context/AppContext";
+import { ToastProvider } from "./context/ToastContext";
 import { Sidebar } from "./components/layout/Sidebar";
 import { Header } from "./components/layout/Header";
+import { CommandPalette } from "./components/ui/CommandPalette";
 
 // Lazy-loaded pages — each is a separate JS chunk
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -71,6 +73,8 @@ function AppShell() {
           </ErrorBoundary>
         </main>
       </div>
+      {/* CommandPalette uses createPortal — needs AppContext so lives inside AppShell */}
+      <CommandPalette />
     </div>
   );
 }
@@ -78,7 +82,9 @@ function AppShell() {
 export default function App() {
   return (
     <AppProvider>
-      <AppShell />
+      <ToastProvider>
+        <AppShell />
+      </ToastProvider>
     </AppProvider>
   );
 }

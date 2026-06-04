@@ -2,8 +2,8 @@
 import { createContext, useContext, useReducer, useCallback, type ReactNode } from "react";
 import { PROJECTS, type Project } from "../data/mock";
 
-type Theme = "dark" | "light";
-type Page = "dashboard" | "projects" | "analytics" | "team" | "settings";
+export type Theme = "dark" | "light";
+export type Page = "dashboard" | "projects" | "analytics" | "team" | "settings";
 
 type AppState = {
   theme: Theme;
