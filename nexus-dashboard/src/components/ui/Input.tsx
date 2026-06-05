@@ -1,11 +1,13 @@
-import { type InputHTMLAttributes, forwardRef } from "react";
+// React 19: ref-as-prop — forwardRef is no longer needed
+import { type InputHTMLAttributes, type Ref } from "react";
 
 type Props = InputHTMLAttributes<HTMLInputElement> & {
   label?: string; error?: string; icon?: React.ReactNode;
+  ref?: Ref<HTMLInputElement>;
 };
 
-export const Input = forwardRef<HTMLInputElement, Props>(
-  ({ label, error, icon, style, ...rest }, ref) => (
+export function Input({ label, error, icon, style, ref, ...rest }: Props) {
+  return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
       {label && (
         <label style={{ fontSize: 12, fontWeight: 500, color: "var(--text-secondary)" }}>
@@ -42,6 +44,5 @@ export const Input = forwardRef<HTMLInputElement, Props>(
       </div>
       {error && <span style={{ fontSize: 11, color: "var(--danger)" }}>{error}</span>}
     </div>
-  )
-);
-Input.displayName = "Input";
+  );
+}

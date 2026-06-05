@@ -20,17 +20,18 @@ type AppAction =
   | { type: "DELETE_PROJECT"; payload: string }
   | { type: "TOGGLE_SIDEBAR" };
 
-const initialState: AppState = {
-  theme: "dark",
-  page: "dashboard",
-  projects: PROJECTS,
-  sidebarOpen: true,
-};
+function initState(): AppState {
+  const saved = localStorage.getItem("nexus-theme") as Theme | null;
+  const theme: Theme = saved ?? "dark";
+  document.documentElement.setAttribute("data-theme", theme);
+  return { theme, page: "dashboard", projects: PROJECTS, sidebarOpen: true };
+}
 
 function appReducer(state: AppState, action: AppAction): AppState {
   switch (action.type) {
     case "SET_THEME":
       document.documentElement.setAttribute("data-theme", action.payload);
+      localStorage.setItem("nexus-theme", action.payload);
       return { ...state, theme: action.payload };
     case "SET_PAGE":
       return { ...state, page: action.payload };
@@ -57,7 +58,7 @@ type AppContextValue = {
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [state, dispatch] = useReducer(appReducer, initialState);
+  const [state, dispatch] = useReducer(appReducer, undefined, initState);
 
   const navigate = useCallback((page: Page) => {
     dispatch({ type: "SET_PAGE", payload: page });

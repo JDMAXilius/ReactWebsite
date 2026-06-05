@@ -1,5 +1,6 @@
 // Ch07: useTransition for navigation, Ch05: React.memo for stat cards
-import { useTransition } from "react";
+// Ch09: use() hook — suspends on a Promise, replaces useEffect+loading state
+import { use, Suspense, useTransition } from "react";
 import { StatCard } from "../components/ui/StatCard";
 import { Card } from "../components/ui/Card";
 import { Badge } from "../components/ui/Badge";
@@ -7,6 +8,32 @@ import { Avatar } from "../components/ui/Avatar";
 import { ProgressBar } from "../components/ui/ProgressBar";
 import { useApp } from "../context/AppContext";
 import { ACTIVITY, CHART_DATA } from "../data/mock";
+
+// Promise is cached outside the component — re-creating it on render would cause infinite suspense
+const systemHealthPromise = new Promise<{ uptime: string; requests: string; p99: string; errors: string }>(
+  resolve => setTimeout(() => resolve({ uptime: "99.97%", requests: "1.24M", p99: "42ms", errors: "0.03%" }), 1400)
+);
+
+function SystemHealth() {
+  // use() unwraps the promise — this component suspends until it resolves
+  const health = use(systemHealthPromise);
+  const items = [
+    { label: "Uptime",    value: health.uptime,   color: "var(--success)" },
+    { label: "Requests",  value: health.requests, color: "var(--info)" },
+    { label: "P99 Lat.",  value: health.p99,      color: "var(--warning)" },
+    { label: "Errors",    value: health.errors,   color: "var(--danger)" },
+  ];
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 1, background: "var(--border)" }}>
+      {items.map(item => (
+        <div key={item.label} style={{ background: "var(--bg-surface)", padding: "16px", textAlign: "center" }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: item.color }}>{item.value}</div>
+          <div style={{ fontSize: 11, color: "var(--text-muted)", marginTop: 4, textTransform: "uppercase", letterSpacing: "0.05em" }}>{item.label}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 const STATS = [
   { label: "Total Revenue", value: "$72,400", change: "+12.5%", trend: "up" as const, icon: <span>💰</span> },
@@ -109,6 +136,23 @@ export default function Dashboard() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
         {STATS.map(s => <StatCard key={s.label} {...s} />)}
       </div>
+
+      {/* System Health — use() + Suspense: header renders immediately, body waits for Promise */}
+      <Card padded={false} style={{ overflow: "hidden" }}>
+        <Card.Header>
+          <span style={{ fontSize: 14, fontWeight: 600 }}>System Health</span>
+          <Badge variant="success" dot>Live</Badge>
+        </Card.Header>
+        <Suspense fallback={
+          <div style={{ padding: "18px", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, color: "var(--text-muted)", fontSize: 12 }}>
+            <div style={{ width: 12, height: 12, border: "2px solid var(--border-strong)", borderTopColor: "var(--primary)", borderRadius: "50%", animation: "spin 0.7s linear infinite" }} />
+            Fetching metrics…
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          </div>
+        }>
+          <SystemHealth />
+        </Suspense>
+      </Card>
 
       {/* Charts row */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
